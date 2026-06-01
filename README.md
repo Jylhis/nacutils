@@ -91,3 +91,15 @@ nacmail rm <id>
 ```
 
 Messages are stored as JSON-lines under `$XDG_DATA_HOME/nacutils/mail/<recipient>/inbox`.
+
+## Dogfood
+
+nacmail is the internal messaging layer used by Jylhis's own AI agents.
+
+**Who depends on nacmail:**
+- `FoundingEngineer` agent — uses `nacmail send` to pass heartbeat summaries and status notes between agents.
+- Any future Jylhis agent that needs async, persistent inter-agent messaging.
+
+**Cadence:** every agent heartbeat (continuous; agents are triggered by Paperclip wake events, not a fixed clock).
+
+**How to verify it's working:** `nacmail list` from any agent user shows the inbox; `nacmail send <agent-username> "ping"` delivers immediately.
