@@ -3,3 +3,5 @@ dist/
 *.test
 .devenv/
 .direnv/
+deploy/cloudflare/healthz/node_modules/
+deploy/cloudflare/healthz/.wrangler/

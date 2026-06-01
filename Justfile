@@ -4,6 +4,10 @@ export CGO_ENABLED := "0"
 default:
     @just --list
 
+# Enter the Nix dev environment (requires devenv)
+dev:
+    devenv shell
+
 # Build nacmail binary into ./bin/
 build:
     go build -o bin/nacmail ./cmd/nacmail
