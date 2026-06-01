@@ -13,7 +13,15 @@ jobs:
   sonar:
     name: Scan
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
+      - name: Require SONAR_TOKEN
+        if: ${{ env.SONAR_TOKEN == '' }}
+        run: |
+          echo "::error::SONAR_TOKEN is not configured. Add it in Settings → Secrets → Actions."
+          echo "Setup: https://sonarcloud.io → My Projects → Analyze new project → Jylhis/nacutils"
+          exit 1
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -22,7 +30,7 @@ jobs:
           go-version-file: go.mod
       - name: Run tests with coverage
         run: go test -coverprofile=coverage.out -covermode=atomic ./...
-      - uses: SonarSource/sonarcloud-github-action@master
+      - uses: SonarSource/sonarqube-scan-action@v5
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
