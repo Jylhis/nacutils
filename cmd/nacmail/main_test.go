@@ -166,3 +166,112 @@ func TestCLI_List_HeartbeatSummaryKind(t *testing.T) {
 		t.Errorf("sender: got %q, want %q", e.Sender, "agent-001")
 	}
 }
+
+func TestCLI_List_StyledHeadersAndKinds(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("NO_COLOR", "")
+
+	cases := []struct {
+		kind  string
+		token string
+	}{
+		{kind: "note", token: "\x1b[34mnote\x1b[0m"},
+		{kind: "status", token: "\x1b[32mstatus\x1b[0m"},
+		{kind: "attn", token: "\x1b[1;33mattn\x1b[0m"},
+		{kind: "heartbeat-summary", token: "\x1b[1;36mheartbeat-summary\x1b[0m"},
+	}
+
+	for _, tc := range cases {
+		if _, err := runCmd(t, "send", "styled-user", tc.kind+" body", "--kind", tc.kind, "--sender", "styler"); err != nil {
+			t.Fatalf("send %s: %v", tc.kind, err)
+		}
+	}
+
+	out, err := runCmd(t, "list", "--color", "styled-user")
+	if err != nil {
+		t.Fatalf("list styled: %v", err)
+	}
+	if !strings.Contains(out, "\x1b[1;36mKIND\x1b[0m") {
+		t.Fatalf("styled header missing ANSI:\n%s", out)
+	}
+	for _, tc := range cases {
+		if !strings.Contains(out, tc.token) {
+			t.Errorf("styled kind missing %q:\n%s", tc.token, out)
+		}
+	}
+}
+
+func TestCLI_List_DisablesANSIForNoColorAndJSON(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("NO_COLOR", "")
+
+	if _, err := runCmd(t, "send", "plain-user", "body", "--kind", "status"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	out, err := runCmd(t, "list", "--color", "--no-color", "plain-user")
+	if err != nil {
+		t.Fatalf("list --no-color: %v", err)
+	}
+	if strings.Contains(out, "\x1b[") {
+		t.Fatalf("list --no-color emitted ANSI:\n%s", out)
+	}
+
+	out, err = runCmd(t, "list", "--json", "plain-user")
+	if err != nil {
+		t.Fatalf("list --json: %v", err)
+	}
+	if strings.Contains(out, "\x1b[") {
+		t.Fatalf("list --json emitted ANSI:\n%s", out)
+	}
+}
+
+func TestCLI_List_DisablesANSIForNoColorEnv(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("NO_COLOR", "1")
+
+	if _, err := runCmd(t, "send", "env-user", "body", "--kind", "attn"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	out, err := runCmd(t, "list", "--color", "env-user")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if strings.Contains(out, "\x1b[") {
+		t.Fatalf("list emitted ANSI with NO_COLOR set:\n%s", out)
+	}
+}
+
+func TestCLI_Read_StyledAndPlainBody(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("NO_COLOR", "")
+
+	out, err := runCmd(t, "send", "reader", "deploy blocked", "--kind", "attn", "--sender", "ops")
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	id := strings.TrimSpace(out)
+
+	out, err = runCmd(t, "read", "--color", id)
+	if err != nil {
+		t.Fatalf("read styled: %v", err)
+	}
+	if !strings.Contains(out, "\x1b[1;33mattn\x1b[0m") {
+		t.Fatalf("styled read kind missing ANSI:\n%s", out)
+	}
+	if !strings.Contains(out, "\x1b[1;33mdeploy blocked\x1b[0m") {
+		t.Fatalf("styled read body missing ANSI:\n%s", out)
+	}
+
+	out, err = runCmd(t, "read", "--no-color", id)
+	if err != nil {
+		t.Fatalf("read plain: %v", err)
+	}
+	if strings.Contains(out, "\x1b[") {
+		t.Fatalf("plain read emitted ANSI:\n%s", out)
+	}
+	if !strings.Contains(out, "deploy blocked") {
+		t.Fatalf("plain read missing body:\n%s", out)
+	}
+}

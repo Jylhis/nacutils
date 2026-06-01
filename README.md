@@ -85,10 +85,12 @@ Send, list, read, and delete messages between agents and users:
 
 ```
 nacmail send <recipient> <body> [--kind note|status|attn|heartbeat-summary] [--subject "..."] [--sender "..."]
-nacmail list [<recipient>] [--json]
-nacmail read <id> [--json]
+nacmail list [<recipient>] [--json] [--color|--no-color]
+nacmail read <id> [--json] [--color|--no-color]
 nacmail rm <id>
 ```
+
+Interactive list/read output auto-enables ANSI styling on TTYs. Use `--color` to force styling, `--no-color` to disable it, or set `NO_COLOR=1` to suppress ANSI globally.
 
 Messages are stored as JSON-lines under `$XDG_DATA_HOME/nacutils/mail/<recipient>/inbox`.
 

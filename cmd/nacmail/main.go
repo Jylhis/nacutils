@@ -16,6 +16,20 @@ import (
 	"github.com/jylhis/nacutils/internal/mailbox"
 )
 
+const ansiReset = "\x1b[0m"
+
+var writerIsTTY = func(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
+}
+
 func main() {
 	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
@@ -101,6 +115,8 @@ func newSendCmd() *cobra.Command {
 // newListCmd implements: nacmail list [<recipient>]
 func newListCmd() *cobra.Command {
 	var asJSON bool
+	var forceColor bool
+	var noColor bool
 
 	cmd := &cobra.Command{
 		Use:   "list [<recipient>]",
@@ -137,27 +153,38 @@ func newListCmd() *cobra.Command {
 				return nil
 			}
 
+			styled := shouldUseANSI(out, asJSON, forceColor, noColor)
 			w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-			fmt.Fprintln(w, "ID\tFROM\tKIND\tSUBJECT\tDATE")
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+				styleHeader("ID", styled),
+				styleHeader("FROM", styled),
+				styleHeader("KIND", styled),
+				styleHeader("SUBJECT", styled),
+				styleHeader("DATE", styled),
+			)
 			for _, e := range envelopes {
 				subj := e.Subject
 				if subj == "" {
 					subj = "-"
 				}
 				date := e.CreatedAt.UTC().Format(time.DateTime)
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", e.ID, e.Sender, e.Kind, subj, date)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", e.ID, e.Sender, styleKind(e.Kind, styled), subj, date)
 			}
 			return w.Flush()
 		},
 	}
 
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output raw JSON (one envelope per line)")
+	cmd.Flags().BoolVar(&forceColor, "color", false, "force ANSI styling when not using JSON")
+	cmd.Flags().BoolVar(&noColor, "no-color", false, "disable ANSI styling")
 	return cmd
 }
 
 // newReadCmd implements: nacmail read <id>
 func newReadCmd() *cobra.Command {
 	var asJSON bool
+	var forceColor bool
+	var noColor bool
 
 	cmd := &cobra.Command{
 		Use:   "read <id>",
@@ -182,12 +209,14 @@ func newReadCmd() *cobra.Command {
 				return nil
 			}
 
-			printEnvelope(out, e)
+			printEnvelope(out, e, shouldUseANSI(out, asJSON, forceColor, noColor))
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output raw JSON")
+	cmd.Flags().BoolVar(&forceColor, "color", false, "force ANSI styling when not using JSON")
+	cmd.Flags().BoolVar(&noColor, "no-color", false, "disable ANSI styling")
 	return cmd
 }
 
@@ -214,11 +243,11 @@ func newRmCmd() *cobra.Command {
 	}
 }
 
-func printEnvelope(w io.Writer, e *envelope.Envelope) {
+func printEnvelope(w io.Writer, e *envelope.Envelope, styled bool) {
 	fmt.Fprintf(w, "ID:        %s\n", e.ID)
 	fmt.Fprintf(w, "From:      %s\n", e.Sender)
 	fmt.Fprintf(w, "To:        %s\n", e.Recipient)
-	fmt.Fprintf(w, "Kind:      %s\n", e.Kind)
+	fmt.Fprintf(w, "Kind:      %s\n", styleKind(e.Kind, styled))
 	if e.Subject != "" {
 		fmt.Fprintf(w, "Subject:   %s\n", e.Subject)
 	}
@@ -227,6 +256,54 @@ func printEnvelope(w io.Writer, e *envelope.Envelope) {
 		data, _ := json.Marshal(e.Meta)
 		fmt.Fprintf(w, "Meta:      %s\n", data)
 	}
-	fmt.Fprintln(w, strings.Repeat("-", 40))
-	fmt.Fprintln(w, e.Body)
+	fmt.Fprintln(w, styleSeparator(strings.Repeat("-", 40), styled))
+	fmt.Fprintln(w, styleKindText(e.Kind, e.Body, styled))
+}
+
+func shouldUseANSI(w io.Writer, asJSON bool, forceColor bool, noColor bool) bool {
+	if asJSON || noColor || os.Getenv("NO_COLOR") != "" {
+		return false
+	}
+	if forceColor {
+		return true
+	}
+	return writerIsTTY(w)
+}
+
+func styleHeader(s string, styled bool) string {
+	return styleWithCode("1;36", s, styled)
+}
+
+func styleSeparator(s string, styled bool) string {
+	return styleWithCode("2", s, styled)
+}
+
+func styleKind(kind envelope.Kind, styled bool) string {
+	return styleWithCode(kindANSI(kind), string(kind), styled)
+}
+
+func styleKindText(kind envelope.Kind, s string, styled bool) string {
+	return styleWithCode(kindANSI(kind), s, styled)
+}
+
+func kindANSI(kind envelope.Kind) string {
+	switch kind {
+	case envelope.KindNote:
+		return "34"
+	case envelope.KindStatus:
+		return "32"
+	case envelope.KindAttn:
+		return "1;33"
+	case envelope.KindHeartbeatSummary:
+		return "1;36"
+	default:
+		return ""
+	}
+}
+
+func styleWithCode(code string, s string, styled bool) string {
+	if !styled || code == "" {
+		return s
+	}
+	return "\x1b[" + code + "m" + s + ansiReset
 }
