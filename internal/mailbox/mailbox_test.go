@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/jylhis/nacutils/internal/envelope"
 	"github.com/jylhis/nacutils/internal/mailbox"
@@ -161,5 +162,145 @@ func TestBaseDir(t *testing.T) {
 	want := "/tmp/testxdg/nacutils/mail"
 	if got != want {
 		t.Errorf("BaseDir with XDG_DATA_HOME: got %q, want %q", got, want)
+	}
+}
+
+func TestMarkRead(t *testing.T) {
+	base := tmpBase(t)
+	dir := mailbox.RecipientDir(base, "alice")
+	e := makeEnvelope(t, "bob", "alice")
+
+	if err := mailbox.Append(dir, e); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+
+	readAt := time.Date(2026, 6, 2, 7, 0, 0, 0, time.UTC)
+	if err := mailbox.MarkRead(base, e.ID, readAt); err != nil {
+		t.Fatalf("MarkRead: %v", err)
+	}
+
+	got, err := mailbox.ReadAll(dir)
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if got[0].Meta["read_at"] != readAt.Format(time.RFC3339) {
+		t.Fatalf("read_at: got %v want %s", got[0].Meta["read_at"], readAt.Format(time.RFC3339))
+	}
+}
+
+func TestCleanup_DryRunAndApply(t *testing.T) {
+	base := tmpBase(t)
+	dir := mailbox.RecipientDir(base, "alice")
+
+	oldRead := makeEnvelope(t, "ops", "alice")
+	oldRead.CreatedAt = time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	oldRead.Meta["read_at"] = time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC).Format(time.RFC3339)
+
+	oldUnread := makeEnvelope(t, "ops", "alice")
+	oldUnread.CreatedAt = time.Date(2026, 5, 1, 13, 0, 0, 0, time.UTC)
+
+	newRead := makeEnvelope(t, "ops", "alice")
+	newRead.CreatedAt = time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	newRead.Meta["read_at"] = time.Date(2026, 6, 1, 13, 0, 0, 0, time.UTC).Format(time.RFC3339)
+
+	for _, e := range []*envelope.Envelope{oldRead, oldUnread, newRead} {
+		if err := mailbox.Append(dir, e); err != nil {
+			t.Fatalf("Append %s: %v", e.ID, err)
+		}
+	}
+
+	before := time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC)
+	report, err := mailbox.Cleanup(base, "alice", before, false)
+	if err != nil {
+		t.Fatalf("Cleanup dry-run: %v", err)
+	}
+	if report.Eligible != 1 || report.Removed != 0 {
+		t.Fatalf("dry-run report: eligible=%d removed=%d", report.Eligible, report.Removed)
+	}
+
+	got, err := mailbox.ReadAll(dir)
+	if err != nil {
+		t.Fatalf("ReadAll after dry-run: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("dry-run should keep all envelopes, got %d", len(got))
+	}
+
+	report, err = mailbox.Cleanup(base, "alice", before, true)
+	if err != nil {
+		t.Fatalf("Cleanup apply: %v", err)
+	}
+	if report.Removed != 1 {
+		t.Fatalf("apply report removed=%d want 1", report.Removed)
+	}
+
+	got, err = mailbox.ReadAll(dir)
+	if err != nil {
+		t.Fatalf("ReadAll after apply: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("apply should keep 2 envelopes, got %d", len(got))
+	}
+	for _, e := range got {
+		if e.ID == oldRead.ID {
+			t.Fatal("old read envelope was not removed")
+		}
+	}
+}
+
+func TestCleanup_NoMatchingRecipients(t *testing.T) {
+	base := tmpBase(t)
+
+	report, err := mailbox.Cleanup(base, "missing", time.Now().UTC(), true)
+	if err != nil {
+		t.Fatalf("Cleanup missing recipient: %v", err)
+	}
+	if report.MatchedRecipients != 0 || report.Removed != 0 || report.Inspected != 0 {
+		t.Fatalf("unexpected report: %+v", report)
+	}
+}
+
+func TestCleanup_RecipientScoping(t *testing.T) {
+	base := tmpBase(t)
+	before := time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC)
+
+	aliceDir := mailbox.RecipientDir(base, "alice")
+	aliceEnvelope := makeEnvelope(t, "ops", "alice")
+	aliceEnvelope.CreatedAt = time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	aliceEnvelope.Meta["read_at"] = time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC).Format(time.RFC3339)
+	if err := mailbox.Append(aliceDir, aliceEnvelope); err != nil {
+		t.Fatalf("Append alice: %v", err)
+	}
+
+	bobDir := mailbox.RecipientDir(base, "bob")
+	bobEnvelope := makeEnvelope(t, "ops", "bob")
+	bobEnvelope.CreatedAt = time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	bobEnvelope.Meta["read_at"] = time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC).Format(time.RFC3339)
+	if err := mailbox.Append(bobDir, bobEnvelope); err != nil {
+		t.Fatalf("Append bob: %v", err)
+	}
+
+	report, err := mailbox.Cleanup(base, "alice", before, true)
+	if err != nil {
+		t.Fatalf("Cleanup scoped: %v", err)
+	}
+	if report.MatchedRecipients != 1 || report.Removed != 1 {
+		t.Fatalf("unexpected scoped report: %+v", report)
+	}
+
+	aliceGot, err := mailbox.ReadAll(aliceDir)
+	if err != nil {
+		t.Fatalf("ReadAll alice: %v", err)
+	}
+	if len(aliceGot) != 0 {
+		t.Fatalf("alice should be empty, got %d", len(aliceGot))
+	}
+
+	bobGot, err := mailbox.ReadAll(bobDir)
+	if err != nil {
+		t.Fatalf("ReadAll bob: %v", err)
+	}
+	if len(bobGot) != 1 {
+		t.Fatalf("bob should keep mail, got %d", len(bobGot))
 	}
 }

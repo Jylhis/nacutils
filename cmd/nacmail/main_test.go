@@ -276,6 +276,33 @@ func TestCLI_Read_StyledAndPlainBody(t *testing.T) {
 	}
 }
 
+func TestCLI_Read_MarksEnvelopeRead(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	out, err := runCmd(t, "send", "reader", "body", "--sender", "ops")
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	id := strings.TrimSpace(out)
+
+	if _, err := runCmd(t, "read", id); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+
+	out, err = runCmd(t, "read", id, "--json")
+	if err != nil {
+		t.Fatalf("read --json: %v", err)
+	}
+
+	var e envelope.Envelope
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &e); err != nil {
+		t.Fatalf("read --json parse: %v", err)
+	}
+	if _, ok := e.Meta["read_at"]; !ok {
+		t.Fatalf("expected read_at metadata after read, got %+v", e.Meta)
+	}
+}
+
 func TestCLI_List_LegacyRendererKillSwitch(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 	t.Setenv("NO_COLOR", "")

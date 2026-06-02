@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/jylhis/nacutils/internal/envelope"
 )
@@ -139,14 +140,22 @@ func Remove(recipientDir, id string) error {
 		return fmt.Errorf("envelope %s not found", id)
 	}
 
-	inboxPath := InboxPath(recipientDir)
-	f, err := os.OpenFile(inboxPath, os.O_TRUNC|os.O_WRONLY, 0600)
+	return WriteAll(recipientDir, kept)
+}
+
+// WriteAll rewrites a recipient inbox with the provided envelopes.
+func WriteAll(recipientDir string, envelopes []*envelope.Envelope) error {
+	if err := os.MkdirAll(recipientDir, 0700); err != nil {
+		return fmt.Errorf("create mailbox dir: %w", err)
+	}
+
+	f, err := os.OpenFile(InboxPath(recipientDir), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	for _, e := range kept {
+	for _, e := range envelopes {
 		data, err := json.Marshal(e)
 		if err != nil {
 			return err
@@ -156,4 +165,127 @@ func Remove(recipientDir, id string) error {
 		}
 	}
 	return nil
+}
+
+// MarkRead records read metadata for an envelope the first time it is read.
+func MarkRead(baseDir, id string, readAt time.Time) error {
+	_, recipientDir, err := FindByID(baseDir, id)
+	if err != nil {
+		return err
+	}
+
+	envelopes, err := ReadAll(recipientDir)
+	if err != nil {
+		return err
+	}
+
+	for _, e := range envelopes {
+		if e.ID != id {
+			continue
+		}
+		if e.Meta == nil {
+			e.Meta = map[string]any{}
+		}
+		if _, ok := e.Meta["read_at"]; !ok {
+			e.Meta["read_at"] = readAt.UTC().Format(time.RFC3339)
+		}
+		return WriteAll(recipientDir, envelopes)
+	}
+
+	return fmt.Errorf("envelope %s not found", id)
+}
+
+type CleanupReport struct {
+	RecipientScope    string
+	MatchedRecipients int
+	Inspected         int
+	Eligible          int
+	Removed           int
+	Before            time.Time
+	Apply             bool
+}
+
+// Cleanup deletes read envelopes older than before. Without apply, it only reports.
+func Cleanup(baseDir string, recipient string, before time.Time, apply bool) (CleanupReport, error) {
+	report := CleanupReport{
+		RecipientScope: recipient,
+		Before:         before.UTC(),
+		Apply:          apply,
+	}
+
+	recipients, err := cleanupRecipients(baseDir, recipient)
+	if err != nil {
+		return report, err
+	}
+	report.MatchedRecipients = len(recipients)
+
+	for _, recipientDir := range recipients {
+		envelopes, err := ReadAll(recipientDir)
+		if err != nil {
+			return report, err
+		}
+
+		var kept []*envelope.Envelope
+		changed := false
+		for _, e := range envelopes {
+			report.Inspected++
+			if cleanupEligible(e, before) {
+				report.Eligible++
+				if apply {
+					report.Removed++
+					changed = true
+					continue
+				}
+			}
+			kept = append(kept, e)
+		}
+
+		if apply && changed {
+			if err := WriteAll(recipientDir, kept); err != nil {
+				return report, err
+			}
+		}
+	}
+
+	return report, nil
+}
+
+func cleanupRecipients(baseDir, recipient string) ([]string, error) {
+	if recipient != "" {
+		dir := RecipientDir(baseDir, recipient)
+		if _, err := os.Stat(dir); err != nil {
+			if os.IsNotExist(err) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return []string{dir}, nil
+	}
+
+	entries, err := os.ReadDir(baseDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var dirs []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			dirs = append(dirs, filepath.Join(baseDir, entry.Name()))
+		}
+	}
+	return dirs, nil
+}
+
+func cleanupEligible(e *envelope.Envelope, before time.Time) bool {
+	if !e.CreatedAt.Before(before) {
+		return false
+	}
+	if e.Meta == nil {
+		return false
+	}
+	_, ok := e.Meta["read_at"]
+	return ok
 }

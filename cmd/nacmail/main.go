@@ -198,6 +198,16 @@ func newReadCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			readAt := time.Now().UTC()
+			if err := mailbox.MarkRead(base, id, readAt); err != nil {
+				return fmt.Errorf("read: %w", err)
+			}
+			if e.Meta == nil {
+				e.Meta = map[string]any{}
+			}
+			if _, ok := e.Meta["read_at"]; !ok {
+				e.Meta["read_at"] = readAt.Format(time.RFC3339)
+			}
 
 			out := cmd.OutOrStdout()
 			if asJSON {
