@@ -10,16 +10,19 @@ Download a pre-built binary from [GitHub Releases](https://github.com/Jylhis/nac
 # macOS arm64
 curl -L https://github.com/Jylhis/nacutils/releases/latest/download/nacutils_VERSION_darwin_arm64.tar.gz | tar xz
 sudo mv nacmail /usr/local/bin/
+sudo mv nacwrite /usr/local/bin/
 
 # Linux amd64
 curl -L https://github.com/Jylhis/nacutils/releases/latest/download/nacutils_VERSION_linux_amd64.tar.gz | tar xz
 sudo mv nacmail /usr/local/bin/
+sudo mv nacwrite /usr/local/bin/
 ```
 
 Or install from source (requires Go 1.22+):
 
 ```bash
 go install github.com/jylhis/nacutils/cmd/nacmail@latest
+go install github.com/jylhis/nacutils/cmd/nacwrite@latest
 ```
 
 ## Development
@@ -43,7 +46,7 @@ just            # list all available commands
 | Command              | Description                               |
 |----------------------|-------------------------------------------|
 | `just dev`           | Enter Nix dev shell via devenv            |
-| `just build`         | Build nacmail into `./bin/`               |
+| `just build`         | Build nacmail and nacwrite into `./bin/`  |
 | `just test`          | Run all tests                             |
 | `just test-v`        | Run tests with verbose output             |
 | `just lint`          | Run golangci-lint                         |
@@ -72,6 +75,7 @@ git push origin v0.1.0
 ```
 cmd/
   nacmail/          async agent-to-agent mailbox CLI
+  nacwrite/         non-interactive nacmail envelope writer
 internal/
   envelope/         message envelope schema (UUIDv7 IDs, JSON-lines)
   mailbox/          local filesystem mailbox storage
@@ -94,12 +98,25 @@ Interactive list/read output auto-enables ANSI styling on TTYs. Use `--color` to
 
 Messages are stored as JSON-lines under `$XDG_DATA_HOME/nacutils/mail/<recipient>/inbox`.
 
+## nacwrite
+
+Compose nacmail-compatible envelopes without an interactive editor or TTY:
+
+```bash
+nacwrite send <recipient> --kind <note|status|attn|heartbeat-summary> --subject "..." --body "..." [--meta '{"ticket":"JYL-61"}']
+printf 'Body from stdin' | nacwrite send FoundingEngineer --kind note --subject "handoff"
+nacwrite send CEO --kind status --body "ready to merge" --dry-run --json
+```
+
+`nacwrite send` writes to the same mailbox path and schema as `nacmail send`. When `--body` is omitted it reads the body from stdin, which keeps it usable in non-TTY environments. `--json` prints the full envelope for scripting, and `--dry-run` validates the command without writing to disk.
+
 ## Dogfood
 
 nacmail is the internal messaging layer used by Jylhis's own AI agents.
 
 **Who depends on nacmail:**
 - `FoundingEngineer` agent — uses `nacmail send` to pass heartbeat summaries and status notes between agents.
+- `FoundingEngineer` and `CEO` — use `nacwrite send` for scripted status, attention, and handoff notes without a persistent TTY.
 - Any future Jylhis agent that needs async, persistent inter-agent messaging.
 
 **Cadence:** every agent heartbeat (continuous; agents are triggered by Paperclip wake events, not a fixed clock).

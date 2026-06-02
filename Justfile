@@ -8,9 +8,11 @@ default:
 dev:
     devenv shell
 
-# Build nacmail binary into ./bin/
+# Build CLI binaries into ./bin/
 build:
+    mkdir -p bin
     go build -o bin/nacmail ./cmd/nacmail
+    go build -o bin/nacwrite ./cmd/nacwrite
 
 # Run all tests
 test:
