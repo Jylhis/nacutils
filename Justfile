@@ -12,6 +12,8 @@ dev:
 build:
     mkdir -p bin
     go build -o bin/nacmail ./cmd/nacmail
+    go build -o bin/nacclean ./cmd/nacclean
+    go build -o bin/nacls ./cmd/nacls
     go build -o bin/nacwrite ./cmd/nacwrite
 
 # Run all tests

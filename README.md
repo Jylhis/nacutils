@@ -10,11 +10,15 @@ Download a pre-built binary from [GitHub Releases](https://github.com/Jylhis/nac
 # macOS arm64
 curl -L https://github.com/Jylhis/nacutils/releases/latest/download/nacutils_VERSION_darwin_arm64.tar.gz | tar xz
 sudo mv nacmail /usr/local/bin/
+sudo mv nacclean /usr/local/bin/
+sudo mv nacls /usr/local/bin/
 sudo mv nacwrite /usr/local/bin/
 
 # Linux amd64
 curl -L https://github.com/Jylhis/nacutils/releases/latest/download/nacutils_VERSION_linux_amd64.tar.gz | tar xz
 sudo mv nacmail /usr/local/bin/
+sudo mv nacclean /usr/local/bin/
+sudo mv nacls /usr/local/bin/
 sudo mv nacwrite /usr/local/bin/
 ```
 
@@ -22,6 +26,8 @@ Or install from source (requires Go 1.22+):
 
 ```bash
 go install github.com/jylhis/nacutils/cmd/nacmail@latest
+go install github.com/jylhis/nacutils/cmd/nacclean@latest
+go install github.com/jylhis/nacutils/cmd/nacls@latest
 go install github.com/jylhis/nacutils/cmd/nacwrite@latest
 ```
 
@@ -46,7 +52,7 @@ just            # list all available commands
 | Command              | Description                               |
 |----------------------|-------------------------------------------|
 | `just dev`           | Enter Nix dev shell via devenv            |
-| `just build`         | Build nacmail and nacwrite into `./bin/`  |
+| `just build`         | Build nacmail, nacclean, nacls, and nacwrite into `./bin/` |
 | `just test`          | Run all tests                             |
 | `just test-v`        | Run tests with verbose output             |
 | `just lint`          | Run golangci-lint                         |
@@ -75,6 +81,8 @@ git push origin v0.1.0
 ```
 cmd/
   nacmail/          async agent-to-agent mailbox CLI
+  nacclean/         safe mailbox cleanup CLI
+  nacls/            mailbox summary CLI
   nacwrite/         non-interactive nacmail envelope writer
 internal/
   envelope/         message envelope schema (UUIDv7 IDs, JSON-lines)
@@ -98,6 +106,28 @@ Interactive list/read output auto-enables ANSI styling on TTYs. Use `--color` to
 
 Messages are stored as JSON-lines under `$XDG_DATA_HOME/nacutils/mail/<recipient>/inbox`.
 
+Reading mail records `meta.read_at`, which `nacclean` uses to avoid deleting unread envelopes.
+
+## nacclean
+
+Explicitly clean read mail older than a chosen threshold:
+
+```bash
+nacclean [recipient] --before <duration|RFC3339|unix-ms> [--apply] [--json]
+```
+
+`nacclean` defaults to dry-run mode. It reports how many envelopes matched the scope, were inspected, were eligible for deletion, and were removed. Only envelopes with `meta.read_at` set and `created_at` older than `--before` are eligible. Add `--apply` to rewrite inboxes and remove those envelopes.
+
+## nacls
+
+Summarize mailbox state without opening individual envelopes:
+
+```bash
+nacls [recipient] [--json] [--path /tmp/mail-fixture]
+```
+
+Default output is a plain table with `RECIPIENT`, `TOTAL`, `PENDING`, `READ`, and `MALFORMED` counts. `--json` emits recipient-sorted summaries with deterministic keys. `--path` points `nacls` at a fixture or alternate mail root without touching the default mailbox directory.
+
 ## nacwrite
 
 Compose nacmail-compatible envelopes without an interactive editor or TTY:
@@ -116,6 +146,8 @@ nacmail is the internal messaging layer used by Jylhis's own AI agents.
 
 **Who depends on nacmail:**
 - `FoundingEngineer` agent — uses `nacmail send` to pass heartbeat summaries and status notes between agents.
+- `FoundingEngineer` and `CEO` — use `nacclean` for explicit maintenance passes when mailbox backlog grows.
+- `CodexEngineer` and `FoundingEngineer` — use `nacls` to inspect mailbox state during triage without opening every envelope.
 - `FoundingEngineer` and `CEO` — use `nacwrite send` for scripted status, attention, and handoff notes without a persistent TTY.
 - Any future Jylhis agent that needs async, persistent inter-agent messaging.
 
