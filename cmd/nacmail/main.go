@@ -14,9 +14,8 @@ import (
 
 	"github.com/jylhis/nacutils/internal/envelope"
 	"github.com/jylhis/nacutils/internal/mailbox"
+	"github.com/jylhis/nacutils/internal/render"
 )
-
-const ansiReset = "\x1b[0m"
 
 var writerIsTTY = func(w io.Writer) bool {
 	f, ok := w.(*os.File)
@@ -154,13 +153,14 @@ func newListCmd() *cobra.Command {
 			}
 
 			styled := shouldUseANSI(out, asJSON, forceColor, noColor)
+			renderer := render.New()
 			w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
 			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
-				styleHeader("ID", styled),
-				styleHeader("FROM", styled),
-				styleHeader("KIND", styled),
-				styleHeader("SUBJECT", styled),
-				styleHeader("DATE", styled),
+				renderer.Header("ID", styled),
+				renderer.Header("FROM", styled),
+				renderer.Header("KIND", styled),
+				renderer.Header("SUBJECT", styled),
+				renderer.Header("DATE", styled),
 			)
 			for _, e := range envelopes {
 				subj := e.Subject
@@ -168,7 +168,7 @@ func newListCmd() *cobra.Command {
 					subj = "-"
 				}
 				date := e.CreatedAt.UTC().Format(time.DateTime)
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", e.ID, e.Sender, styleKind(e.Kind, styled), subj, date)
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", e.ID, e.Sender, renderer.Kind(e.Kind, styled), subj, date)
 			}
 			return w.Flush()
 		},
@@ -244,10 +244,12 @@ func newRmCmd() *cobra.Command {
 }
 
 func printEnvelope(w io.Writer, e *envelope.Envelope, styled bool) {
+	renderer := render.New()
+
 	fmt.Fprintf(w, "ID:        %s\n", e.ID)
 	fmt.Fprintf(w, "From:      %s\n", e.Sender)
 	fmt.Fprintf(w, "To:        %s\n", e.Recipient)
-	fmt.Fprintf(w, "Kind:      %s\n", styleKind(e.Kind, styled))
+	fmt.Fprintf(w, "Kind:      %s\n", renderer.Kind(e.Kind, styled))
 	if e.Subject != "" {
 		fmt.Fprintf(w, "Subject:   %s\n", e.Subject)
 	}
@@ -256,8 +258,8 @@ func printEnvelope(w io.Writer, e *envelope.Envelope, styled bool) {
 		data, _ := json.Marshal(e.Meta)
 		fmt.Fprintf(w, "Meta:      %s\n", data)
 	}
-	fmt.Fprintln(w, styleSeparator(strings.Repeat("-", 40), styled))
-	fmt.Fprintln(w, styleKindText(e.Kind, e.Body, styled))
+	fmt.Fprintln(w, renderer.Separator(strings.Repeat("-", 40), styled))
+	fmt.Fprintln(w, renderer.KindText(e.Kind, e.Body, styled))
 }
 
 func shouldUseANSI(w io.Writer, asJSON bool, forceColor bool, noColor bool) bool {
@@ -268,42 +270,4 @@ func shouldUseANSI(w io.Writer, asJSON bool, forceColor bool, noColor bool) bool
 		return true
 	}
 	return writerIsTTY(w)
-}
-
-func styleHeader(s string, styled bool) string {
-	return styleWithCode("1;36", s, styled)
-}
-
-func styleSeparator(s string, styled bool) string {
-	return styleWithCode("2", s, styled)
-}
-
-func styleKind(kind envelope.Kind, styled bool) string {
-	return styleWithCode(kindANSI(kind), string(kind), styled)
-}
-
-func styleKindText(kind envelope.Kind, s string, styled bool) string {
-	return styleWithCode(kindANSI(kind), s, styled)
-}
-
-func kindANSI(kind envelope.Kind) string {
-	switch kind {
-	case envelope.KindNote:
-		return "34"
-	case envelope.KindStatus:
-		return "32"
-	case envelope.KindAttn:
-		return "1;33"
-	case envelope.KindHeartbeatSummary:
-		return "1;36"
-	default:
-		return ""
-	}
-}
-
-func styleWithCode(code string, s string, styled bool) string {
-	if !styled || code == "" {
-		return s
-	}
-	return "\x1b[" + code + "m" + s + ansiReset
 }

@@ -90,7 +90,7 @@ nacmail read <id> [--json] [--color|--no-color]
 nacmail rm <id>
 ```
 
-Interactive list/read output auto-enables ANSI styling on TTYs. Use `--color` to force styling, `--no-color` to disable it, or set `NO_COLOR=1` to suppress ANSI globally.
+Interactive list/read output auto-enables ANSI styling on TTYs. Use `--color` to force styling, `--no-color` to disable it, or set `NO_COLOR=1` to suppress ANSI globally. The default styled path consumes a vendored `@jylhis/design` `v0.4.0` token snapshot; set `NACUTILS_DISABLE_DESIGN_RENDERER=1` to fall back to the legacy hardcoded ANSI renderer for rollback.
 
 Messages are stored as JSON-lines under `$XDG_DATA_HOME/nacutils/mail/<recipient>/inbox`.
 

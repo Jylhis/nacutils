@@ -1,0 +1,124 @@
+{
+  "source": "https://github.com/Jylhis/design",
+  "tag": "v0.4.0",
+  "tokensMeta": {
+    "version": "0.3.0"
+  },
+  "typography": {
+    "tuiFallback": "JetBrains Mono, Iosevka, IBM Plex Mono, Fira Mono, DejaVu Sans Mono, monospace"
+  },
+  "palette": {
+    "text-heading": {
+      "light": "#1e1b18",
+      "dark": "#f0eae0"
+    },
+    "text-faint": {
+      "light": "#8a7f72",
+      "dark": "#8a7f72"
+    },
+    "brand": {
+      "light": "#b5703c",
+      "dark": "#e89b5e"
+    }
+  },
+  "status": {
+    "status-err": {
+      "light": "#a60000",
+      "dark": "#ff5f59"
+    },
+    "status-warn": {
+      "light": "#6f5500",
+      "dark": "#d0bc00"
+    },
+    "status-ok": {
+      "light": "#006800",
+      "dark": "#44bc44"
+    },
+    "status-info": {
+      "light": "#0031a9",
+      "dark": "#2fafff"
+    }
+  },
+  "ansi": [
+    {
+      "name": "black",
+      "light": "#2c2825",
+      "dark": "#1a1714"
+    },
+    {
+      "name": "red",
+      "light": "#a60000",
+      "dark": "#ff5f59"
+    },
+    {
+      "name": "green",
+      "light": "#006800",
+      "dark": "#44bc44"
+    },
+    {
+      "name": "yellow",
+      "light": "#6f5500",
+      "dark": "#d0bc00"
+    },
+    {
+      "name": "blue",
+      "light": "#0031a9",
+      "dark": "#2fafff"
+    },
+    {
+      "name": "magenta",
+      "light": "#721045",
+      "dark": "#feacd0"
+    },
+    {
+      "name": "cyan",
+      "light": "#005f5f",
+      "dark": "#6ae4b9"
+    },
+    {
+      "name": "white",
+      "light": "#6b5f54",
+      "dark": "#e8e0d4"
+    },
+    {
+      "name": "bright-black",
+      "light": "#8a7f72",
+      "dark": "#6b6157"
+    },
+    {
+      "name": "bright-red",
+      "light": "#972500",
+      "dark": "#ff7f7f"
+    },
+    {
+      "name": "bright-green",
+      "light": "#315b00",
+      "dark": "#70b900"
+    },
+    {
+      "name": "bright-yellow",
+      "light": "#b5703c",
+      "dark": "#e89b5e"
+    },
+    {
+      "name": "bright-blue",
+      "light": "#3548cf",
+      "dark": "#79a8ff"
+    },
+    {
+      "name": "bright-magenta",
+      "light": "#531ab6",
+      "dark": "#b6a0ff"
+    },
+    {
+      "name": "bright-cyan",
+      "light": "#005e8b",
+      "dark": "#00d3d0"
+    },
+    {
+      "name": "bright-white",
+      "light": "#2c2825",
+      "dark": "#f0eae0"
+    }
+  ]
+}

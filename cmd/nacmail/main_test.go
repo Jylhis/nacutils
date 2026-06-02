@@ -177,8 +177,8 @@ func TestCLI_List_StyledHeadersAndKinds(t *testing.T) {
 	}{
 		{kind: "note", token: "\x1b[34mnote\x1b[0m"},
 		{kind: "status", token: "\x1b[32mstatus\x1b[0m"},
-		{kind: "attn", token: "\x1b[1;33mattn\x1b[0m"},
-		{kind: "heartbeat-summary", token: "\x1b[1;36mheartbeat-summary\x1b[0m"},
+		{kind: "attn", token: "\x1b[33mattn\x1b[0m"},
+		{kind: "heartbeat-summary", token: "\x1b[1;93mheartbeat-summary\x1b[0m"},
 	}
 
 	for _, tc := range cases {
@@ -191,7 +191,7 @@ func TestCLI_List_StyledHeadersAndKinds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list styled: %v", err)
 	}
-	if !strings.Contains(out, "\x1b[1;36mKIND\x1b[0m") {
+	if !strings.Contains(out, "\x1b[1;97mKIND\x1b[0m") {
 		t.Fatalf("styled header missing ANSI:\n%s", out)
 	}
 	for _, tc := range cases {
@@ -257,10 +257,10 @@ func TestCLI_Read_StyledAndPlainBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read styled: %v", err)
 	}
-	if !strings.Contains(out, "\x1b[1;33mattn\x1b[0m") {
+	if !strings.Contains(out, "\x1b[33mattn\x1b[0m") {
 		t.Fatalf("styled read kind missing ANSI:\n%s", out)
 	}
-	if !strings.Contains(out, "\x1b[1;33mdeploy blocked\x1b[0m") {
+	if !strings.Contains(out, "\x1b[33mdeploy blocked\x1b[0m") {
 		t.Fatalf("styled read body missing ANSI:\n%s", out)
 	}
 
@@ -273,5 +273,26 @@ func TestCLI_Read_StyledAndPlainBody(t *testing.T) {
 	}
 	if !strings.Contains(out, "deploy blocked") {
 		t.Fatalf("plain read missing body:\n%s", out)
+	}
+}
+
+func TestCLI_List_LegacyRendererKillSwitch(t *testing.T) {
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("NACUTILS_DISABLE_DESIGN_RENDERER", "1")
+
+	if _, err := runCmd(t, "send", "legacy-user", "summary", "--kind", "heartbeat-summary", "--sender", "ops"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	out, err := runCmd(t, "list", "--color", "legacy-user")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if !strings.Contains(out, "\x1b[1;36mKIND\x1b[0m") {
+		t.Fatalf("legacy header missing ANSI:\n%s", out)
+	}
+	if !strings.Contains(out, "\x1b[1;36mheartbeat-summary\x1b[0m") {
+		t.Fatalf("legacy kind missing ANSI:\n%s", out)
 	}
 }
