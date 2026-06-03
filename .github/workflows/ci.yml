@@ -3,8 +3,18 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -15,27 +25,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: cachix/install-nix-action@v31
+      - uses: nix-community/cache-nix-action@v6
         with:
-          go-version-file: go.mod
-          cache: true
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: latest
-          install-mode: goinstall
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'devenv.nix') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+      - name: Run lint
+        run: nix develop --accept-flake-config --impure -c just lint
 
   test:
     name: Test
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: cachix/install-nix-action@v31
+      - uses: nix-community/cache-nix-action@v6
         with:
-          go-version-file: go.mod
-          cache: true
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'devenv.nix') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
       - name: Run tests
-        run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+        run: nix develop --accept-flake-config --impure -c sh -c 'just test && go test -v -race -coverprofile=coverage.out -covermode=atomic ./...'
       - uses: actions/upload-artifact@v7
         with:
           name: coverage
@@ -49,11 +59,10 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Install gitleaks
-        run: |
-          GITLEAKS_VERSION="8.24.3"
-          curl -sSfL \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar -xz -C /usr/local/bin gitleaks
+      - uses: cachix/install-nix-action@v31
+      - uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'devenv.nix') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
       - name: Scan for secrets
-        run: gitleaks detect --source . --redact --exit-code 1
+        run: nix develop --accept-flake-config --impure -c gitleaks detect --source . --redact --exit-code 1

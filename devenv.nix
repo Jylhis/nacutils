@@ -8,6 +8,7 @@
 {
   packages = with pkgs; [
     go
+    gitleaks
     golangci-lint
     goreleaser
     just
