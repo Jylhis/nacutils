@@ -22,7 +22,7 @@ jobs:
           echo "::error::SONAR_TOKEN is not configured. Add it in Settings → Secrets → Actions."
           echo "Setup: https://sonarcloud.io → My Projects → Analyze new project → Jylhis/nacutils"
           exit 1
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v6
