@@ -5,6 +5,10 @@ on:
     tags:
       - "v*"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   release:
     name: GoReleaser
@@ -13,13 +17,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v6
+      - uses: cachix/install-nix-action@v31
+      - uses: nix-community/cache-nix-action@v6
         with:
-          go-version-file: go.mod
-          cache: true
-      - uses: goreleaser/goreleaser-action@v6
-        with:
-          version: latest
-          args: release --clean
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'devenv.nix') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+      - name: Run GoReleaser
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: nix develop --accept-flake-config --impure -c goreleaser release --clean
